@@ -19,6 +19,7 @@ keywords = ["python"]
 license = {file = "LICENSE"}
 dependencies = [
     "kfactory",
+    "KGeneric",
 ]
 readme = "README.md"
 requires-python = ">=3.7"

@@ -15,13 +15,14 @@ import omegaconf
 import kfactory as kf
 
 from kfactory.config import logger
-from KGeneric.generic_tech import LayerStack
+from kfactory.generic_tech import LayerStack
 from kfactory.materials import MaterialSpec
 from kfactory.pdk import get_layer_stack
 from kfactory.simulation.get_sparameters_path import (
     get_sparameters_path_lumerical as get_sparameters_path,
 )
 from kfactory.typs import ComponentSpec, PathType
+import KGeneric.pcells
 from .simulation_settings import (
     SIMULATION_SETTINGS_LUMERICAL_FDTD,
     SimulationSettingsLumericalFdtd,
@@ -689,7 +690,7 @@ def write_sparameters_lumerical(
         component_ref = component_extended << component
         width = port.width * component.klib.dbu if isinstance(port.width, int) else 1
         extension = component_extended.create_inst(
-            kf.pcells.waveguide(width, ss.port_extension, layer=port.layer)
+            KGeneric.pcells.waveguide(width, ss.port_extension, layer=port.layer)
         )
         extension.connect("o2", component_ref, port.name)
         output_port = extension.ports["o1"]
@@ -1060,7 +1061,7 @@ if __name__ == "__main__":
     s = lumapi.FDTD()
 
     # component = gf.components.straight(length=2.5)
-    component = kf.pcells.mzi()
+    component = KGeneric.pcells.mzi()
 
     material_name_to_lumerical = dict(si=(3.45, 2))  # or dict(si=3.45+2j)
     r = write_sparameters_lumerical(
