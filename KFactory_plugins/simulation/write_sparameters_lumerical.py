@@ -15,7 +15,7 @@ import omegaconf
 import kfactory as kf
 
 from kfactory.config import logger
-from kfactory.generic_tech import LayerStack
+from KGeneric.generic_tech import LayerStack
 from kfactory.materials import MaterialSpec
 from kfactory.pdk import get_layer_stack
 from kfactory.simulation.get_sparameters_path import (

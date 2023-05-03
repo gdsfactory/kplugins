@@ -11,7 +11,7 @@ import numpy as np
 
 import kfactory as kf
 
-from kfactory.generic_tech import LayerStack
+from KGeneric.generic_tech import LayerStack
 from kfactory.kcell import clean_value
 from kfactory.pdk import get_sparameters_path
 from kfactory.typs import ComponentSpec
