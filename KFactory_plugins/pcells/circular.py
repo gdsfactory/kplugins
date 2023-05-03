@@ -5,7 +5,7 @@ A circular bend has a constant radius.
 
 import numpy as np
 
-from kfactory. import kdb
+from kfactory import kdb
 from kfactory.kcell import KCell, LayerEnum, autocell
 from kfactory.utils import Enclosure
 from kfactory.utils.geo import extrude_path

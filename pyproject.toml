@@ -4,7 +4,7 @@ requires = ["flit_core >=3.2,<4"]
 build-backend = "flit_core.buildapi"
 
 [project]
-name="KFactory plugins"
+name="KFactory-plugins"
 description="KFactory extras such as PCells and plugins"
 classifiers = [
 	"Programming Language :: Python :: 3.10",
@@ -18,13 +18,14 @@ authors = [
 keywords = ["python"]
 license = {file = "LICENSE"}
 dependencies = [
-    "matplotlib",
+    "kfactory",
 ]
 readme = "README.md"
 requires-python = ">=3.7"
 
 [project.optional-dependencies]
 tests = ["pytest", "pytest-cov"]
+lumerical = []
 dev = [
     "pre-commit",
     "pytest",
@@ -69,10 +70,10 @@ exclude = '''  # Specify the files/dirs that should be ignored by the black form
 '''
 
 [tool.pytest.ini_options]
-testpaths = ["KFactory plugins/", "tests"]
+testpaths = ["KFactory-plugins/", "tests"]
 # addopts = --tb=no
 addopts = '--tb=short'
-python_files = ["KFactory plugins/*.py", "notebooks/*.ipynb", "tests/*.py"]
+python_files = ["KFactory-plugins/*.py", "notebooks/*.ipynb", "tests/*.py"]
 norecursedirs = ["extra/*.py"]
 
 [tool.flake8]
