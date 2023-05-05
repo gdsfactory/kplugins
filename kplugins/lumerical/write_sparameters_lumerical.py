@@ -14,15 +14,15 @@ import omegaconf  # TODO: remove omegaconf
 import kfactory as kf
 
 from kfactory.typings import CellSpec
-from kfactory.config import logger
-from kfactory.generic_tech import LayerStack
-from kfactory.pdk import get_layer_stack
+from kfactory.conf import logger
+from kfactory.pdk import LayerStack
+from kgeneric.pdk import LAYER_STACK
 
 from kplugins.lumerical.get_sparameters_path import (
     get_sparameters_path_lumerical as get_sparameters_path,
 )
 from kplugins.typings import PathType
-from .simulation_settings import (
+from kplugins.lumerical.simulation_settings import (
     SIMULATION_SETTINGS_LUMERICAL_FDTD,
     SimulationSettingsLumericalFdtd,
 )
@@ -79,7 +79,7 @@ def set_material(session, structure: str, material: MaterialSpec) -> None:  # ty
 
 def plot_sparameters_lumerical(
     cell: kf.KCell,
-    layer_stack: LayerStack = get_layer_stack(),
+    layer_stack: LayerStack = LAYER_STACK,
     session: Optional[object] = None,
     run: bool = True,
     overwrite: bool = False,
@@ -179,7 +179,7 @@ def plot_sparameters_lumerical(
                     path = get_sparameters_path(
                         cell_2,
                         dirpath=dirpath,
-                        layer_stack=layer_stack or get_layer_stack(),
+                        layer_stack=layer_stack or LAYER_STACK,
                         **settings,
                     )
                     if overwrite or not path.exists():
@@ -209,7 +209,7 @@ def plot_sparameters_lumerical(
                 path = get_sparameters_path(
                     cell_,
                     dirpath=dirpath,
-                    layer_stack=layer_stack or get_layer_stack(),
+                    layer_stack=layer_stack or LAYER_STACK,
                     **settings,
                 )
                 if path.exists():
@@ -251,7 +251,7 @@ def plot_sparameters_lumerical(
             paths[cell_.name] = get_sparameters_path(
                 cell_,
                 dirpath=dirpath,
-                layer_stack=layer_stack or get_layer_stack(),
+                layer_stack=layer_stack or LAYER_STACK,
                 **settings,
             )
     if len(s_params) > 1:
@@ -421,7 +421,7 @@ def plot_sparameters_lumerical(
 
 def write_sparameters_lumerical(
     cell: CellSpec,
-    layer_stack: LayerStack = get_layer_stack(),
+    layer_stack: LayerStack = LAYER_STACK,
     session: Optional[object] = None,
     run: bool = True,
     overwrite: bool = False,
@@ -541,7 +541,7 @@ def write_sparameters_lumerical(
     s_params = []
     insts = []
     trans = []
-    cell = kf.get_cell(cell)
+    # cell = kf.get_cell(cell)
 
     def recurse_insts(comp: Any, p=None):  # type: ignore
         if p:
@@ -576,7 +576,7 @@ def write_sparameters_lumerical(
                     path = get_sparameters_path(
                         cell_2,
                         dirpath=dirpath,
-                        layer_stack=layer_stack or get_layer_stack(),
+                        layer_stack=layer_stack or LAYER_STACK,
                         **settings,
                     )
                     if overwrite or not path.exists():
@@ -605,7 +605,7 @@ def write_sparameters_lumerical(
                 path = get_sparameters_path(
                     cell_,
                     dirpath=dirpath,
-                    layer_stack=layer_stack or get_layer_stack(),
+                    layer_stack=layer_stack or LAYER_STACK,
                     **settings,
                 )
                 if path.exists():
@@ -647,12 +647,12 @@ def write_sparameters_lumerical(
             paths[cell_.name] = get_sparameters_path(
                 cell_,
                 dirpath=dirpath,
-                layer_stack=layer_stack or get_layer_stack(),
+                layer_stack=layer_stack or LAYER_STACK,
                 **settings,
             )
     sim_settings = dict(simulation_settings)
 
-    layer_stack = layer_stack or get_layer_stack()
+    layer_stack = layer_stack or LAYER_STACK
 
     layer_to_thickness = layer_stack.get_layer_to_thickness()
     layer_to_zmin = layer_stack.get_layer_to_zmin()
@@ -673,11 +673,11 @@ def write_sparameters_lumerical(
     cell_extended = kf.KCell()
     for port in cell.ports:
         cell_ref = cell_extended << cell
-        width = port.width * cell.klib.dbu if isinstance(port.width, int) else 1
+        width = port.width * cell.kcl.dbu if isinstance(port.width, int) else 1
         extension = cell_extended.create_inst(
-            kf.cells.waveguide(width, ss.port_extension, layer=port.layer)
+            kf.cells.waveguide.waveguide(width, ss.port_extension, layer=port.layer)
         )
-        extension.connect("o2", cell_ref, port.name)
+        extension.align("o2", cell_ref, port.name)
         output_port = extension.ports["o1"]
         cell_extended.add_port(extension.ports["o1"], name=port.name)
 
@@ -866,10 +866,10 @@ def write_sparameters_lumerical(
             s.delete()
 
     for i, port in enumerate(cell.ports):
-        from kfactory.pdk import _ACTIVE_PDK
+        from kgeneric import pdk
 
-        zmin = layer_to_zmin[_ACTIVE_PDK.get_layer((1, 0))]  # type: ignore
-        thickness = layer_to_thickness[_ACTIVE_PDK.get_layer((1, 0))]  # type: ignore
+        zmin = layer_to_zmin[(1, 0)]  # type: ignore
+        thickness = layer_to_thickness[(1, 0)]  # type: ignore
         z = (zmin + thickness) / 2
         zspan = 2 * ss.port_margin + thickness
 

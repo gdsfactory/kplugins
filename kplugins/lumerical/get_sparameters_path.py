@@ -11,10 +11,10 @@ import numpy as np
 
 import kfactory as kf
 
-from KGeneric.generic_tech import LayerStack
+from kgeneric import pdk
+from kgeneric.pdk import LayerStack
 from kfactory.kcell import clean_value
-from kfactory.pdk import get_sparameters_path
-from kfactory.typs import ComponentSpec
+from kfactory.typings import CellSpec
 
 
 def get_kwargs_hash(**kwargs: Any) -> str:
@@ -25,7 +25,7 @@ def get_kwargs_hash(**kwargs: Any) -> str:
 
 
 def _get_sparameters_path(
-    component: kf.KCell,
+    cell: kf.KCell,
     dirpath: Optional[Path] = None,
     **kwargs: Any,
 ) -> Path:
@@ -39,17 +39,17 @@ def _get_sparameters_path(
         kwargs: simulation settings.
 
     """
-    dirpath_ = dirpath or get_sparameters_path()
+    dirpath_ = dirpath or pdk.sparameters_path
     # component = f.get_component(component)
 
     dirpath = pathlib.Path(dirpath_)
     dirpath = (
-        dirpath / component.function_name
-        if hasattr(component, "function_name")
+        dirpath / cell.function_name
+        if hasattr(cell, "function_name")
         else dirpath
     )
     dirpath.mkdir(exist_ok=True, parents=True)
-    return dirpath / f"{component.hash().hex()}_{get_kwargs_hash(**kwargs)}.npz"
+    return dirpath / f"{cell.hash().hex()}_{get_kwargs_hash(**kwargs)}.npz"
 
 
 def _get_sparameters_data(
