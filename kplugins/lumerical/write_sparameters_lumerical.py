@@ -5,24 +5,23 @@ import itertools
 import shutil
 import time
 
-# import gdsfactory as gf
 from pathlib import Path
 from typing import Any, Dict, List, Optional
 
 import numpy as np
-import omegaconf
+import omegaconf  # TODO: remove omegaconf
 
 import kfactory as kf
 
+from kfactory.typings import CellSpec
 from kfactory.config import logger
 from kfactory.generic_tech import LayerStack
-from kfactory.materials import MaterialSpec
 from kfactory.pdk import get_layer_stack
-from kfactory.simulation.get_sparameters_path import (
+
+from kplugins.lumerical.get_sparameters_path import (
     get_sparameters_path_lumerical as get_sparameters_path,
 )
-from kfactory.typs import ComponentSpec, PathType
-import KGeneric.pcells
+from kplugins.typings import PathType
 from .simulation_settings import (
     SIMULATION_SETTINGS_LUMERICAL_FDTD,
     SimulationSettingsLumericalFdtd,
@@ -79,7 +78,7 @@ def set_material(session, structure: str, material: MaterialSpec) -> None:  # ty
 
 
 def plot_sparameters_lumerical(
-    component: kf.KCell,
+    cell: kf.KCell,
     layer_stack: LayerStack = get_layer_stack(),
     session: Optional[object] = None,
     run: bool = True,
@@ -93,7 +92,7 @@ def plot_sparameters_lumerical(
     output_port: str = "o2",
     **settings: Any,
 ) -> str:
-    """Plots and returns component s-parameters using Lumerical INTERCONNECT.
+    """Plots and returns cell s-parameters using Lumerical INTERCONNECT.
 
     If simulation exists it returns the Sparameters directly unless overwrite=True
     which forces a re-run of the simulation
@@ -103,7 +102,7 @@ def plot_sparameters_lumerical(
     In the npz format you can see `S12m` where `m` stands for magnitude
     and `S12a` where `a` stands for angle in radians
 
-    Your components need to have ports, that will extend over the PML.
+    Your cells need to have ports, that will extend over the PML.
 
     For your Fab technology you can overwrite
 
@@ -118,7 +117,7 @@ def plot_sparameters_lumerical(
     You can use this function for inspiration to create your own.
 
     Args:
-        component: kfactory component
+        cell: kfactory cell
         layer_stack: kfactory layer stack
         session: lumerical session
         run: if True runs the simulation
@@ -139,7 +138,7 @@ def plot_sparameters_lumerical(
     insts = []
     trans = []
 
-    component = kf.get_component(component)
+    cell = kf.get_cell(cell)
 
     def recurse_insts(comp: kf.KCell, p=None):  # type: ignore
         if p:
@@ -147,7 +146,7 @@ def plot_sparameters_lumerical(
         for inst in comp.insts:
             if inst.trans in trans:
                 continue
-            if inst.cell.name == component.name:
+            if inst.cell.name == cell.name:
                 continue
             if len(inst.cell.insts) > 0:
                 if "sim" in inst.cell.info:
@@ -159,42 +158,38 @@ def plot_sparameters_lumerical(
                 insts.append(inst)
                 trans.append(inst.trans)
 
-    if "sim" not in component.info and "sparameters" not in component.info:
-        recurse_insts(component)
+    if "sim" not in cell.info and "sparameters" not in cell.info:
+        recurse_insts(cell)
     paths: dict[str, Path] = {}
     for inst in insts:
         # paths = {}
-        component_ = inst.cell
+        cell_ = inst.cell
         if not overwrite:
-            if "sparameters" in component_.info:
-                path = Path(component_.info["sparameters"])
+            if "sparameters" in cell_.info:
+                path = Path(cell_.info["sparameters"])
                 if path.exists():
                     s_params.append(path)  # type: ignore
-                    paths[component_.name] = path
+                    paths[cell_.name] = path
                     continue
-            if "components" in component_.info:
+            if "cells" in cell_.info:
                 paths = {}
-                for component2 in component_.info["components"]:
-                    settings_ = component_.info["components"][component2]
-                    component_2 = kf.get_component(
-                        settings_["component"], **settings_["params"]
-                    )
+                for cell2 in cell_.info["cells"]:
+                    settings_ = cell_.info["cells"][cell2]
+                    cell_2 = kf.get_cell(settings_["cell"], **settings_["params"])
                     path = get_sparameters_path(
-                        component_2,
+                        cell_2,
                         dirpath=dirpath,
                         layer_stack=layer_stack or get_layer_stack(),
                         **settings,
                     )
                     if overwrite or not path.exists():
                         try:
-                            component_solver = component_.info["components"][
-                                component2
-                            ]["sim"]
+                            cell_solver = cell_.info["cells"][cell2]["sim"]
                         except KeyError:
-                            component_solver = solver
+                            cell_solver = solver
                         s_params.append(
                             write_sparameters_lumerical(
-                                component=component_2,
+                                cell=cell_2,
                                 layer_stack=layer_stack,
                                 session=session,
                                 run=run,
@@ -203,27 +198,27 @@ def plot_sparameters_lumerical(
                                 simulation_settings=simulation_settings,
                                 material_name_to_lumerical=material_name_to_lumerical,
                                 delete_fsp_files=delete_fsp_files,
-                                solver=component_solver,
+                                solver=cell_solver,
                                 **settings,
                             )
                         )
-                    paths[component_2.name] = path
+                    paths[cell_2.name] = path
 
             else:
-                print("Simulation exists", component_.name)
+                print("Simulation exists", cell_.name)
                 path = get_sparameters_path(
-                    component_,
+                    cell_,
                     dirpath=dirpath,
                     layer_stack=layer_stack or get_layer_stack(),
                     **settings,
                 )
                 if path.exists():
                     s_params.append(np.load(path))
-                    paths[component_.name] = path
+                    paths[cell_.name] = path
                 else:
                     s_params.append(
                         write_sparameters_lumerical(
-                            component=component_,
+                            cell=cell_,
                             layer_stack=layer_stack,
                             session=session,
                             run=run,
@@ -236,11 +231,11 @@ def plot_sparameters_lumerical(
                             **settings,
                         )
                     )
-                paths[component_.name] = path
+                paths[cell_.name] = path
         else:
             s_params.append(
                 write_sparameters_lumerical(
-                    component=component_,
+                    cell=cell_,
                     layer_stack=layer_stack,
                     session=session,
                     run=run,
@@ -253,8 +248,8 @@ def plot_sparameters_lumerical(
                     **settings,
                 )
             )
-            paths[component_.name] = get_sparameters_path(
-                component_,
+            paths[cell_.name] = get_sparameters_path(
+                cell_,
                 dirpath=dirpath,
                 layer_stack=layer_stack or get_layer_stack(),
                 **settings,
@@ -279,26 +274,26 @@ def plot_sparameters_lumerical(
         s.deleteall()
         s.addelement("Optical Network Analyzer")
         s.set("name", "ONA")
-        s.set("number of input ports", len(component.ports._ports) - 1)
+        s.set("number of input ports", len(cell.ports._ports) - 1)
         s.set("input parameter", 2)
         s.set("start frequency", 3e8 / simulation_settings.wavelength_stop / 1e-6)
         s.set("stop frequency", 3e8 / simulation_settings.wavelength_start / 1e-6)
         s.set("number of points", simulation_settings.wavelength_points)
-        components: dict[tuple[float, float], Any] = {}
+        cells: dict[tuple[float, float], Any] = {}
         for instance in insts:
             for port in instance.ports:
-                if port.d.position in components:
-                    components[port.d.position].update(
+                if port.d.position in cells:
+                    cells[port.d.position].update(
                         {port: port.name, "instance2": instance}
                     )
                 else:
-                    components[port.d.position] = {port: port.name, "instance1": instance}
+                    cells[port.d.position] = {port: port.name, "instance1": instance}
 
         inputs: List[Any] = []
         input = input_port
         outputs: List[Any] = []
         output = output_port
-        for value in components.values():
+        for value in cells.values():
             inv_comp = False
             instances = (
                 [value["instance1"], value["instance2"]]
@@ -317,9 +312,7 @@ def plot_sparameters_lumerical(
                     continue
                 if paths[instance.cell.name].with_suffix(".ldf").exists():
                     s.addelement("MODE Waveguide")
-                    s.setnamed(
-                        f"WGD_1", "name", f"{instance.cell.name, instance.hash}"
-                    )
+                    s.setnamed(f"WGD_1", "name", f"{instance.cell.name, instance.hash}")
                     s.setnamed(
                         f"{instance.cell.name, instance.hash}", "load from file", True
                     )
@@ -336,7 +329,7 @@ def plot_sparameters_lumerical(
                     s.setnamed(
                         f"{instance.cell.name, instance.hash}", "load from file", True
                     )
-                    filepath_component = get_sparameters_path(
+                    filepath_cell = get_sparameters_path(
                         instance,
                         dirpath=dirpath,
                         simulation_settings=simulation_settings,
@@ -370,15 +363,13 @@ def plot_sparameters_lumerical(
                 if port is not None and port != "instance1" and port != "instance2"
             ]
             # ports.remove(None) if None in ports else None
-            if len(ports) > 1 and ports[1] not in [
-                p.name for p in instances[1].ports
-            ]:
+            if len(ports) > 1 and ports[1] not in [p.name for p in instances[1].ports]:
                 ports = ports[::-1]
-            # if "components" in component.info:
-            # for component_ in component.info["components"]:
-            #     component__ = component.info["components"][component_]["component"]
-            #     settings__ = component.info["components"][component_]["params"]
-            #     print(kf.get_component(component__, **settings__).name)
+            # if "cells" in cell.info:
+            # for cell_ in cell.info["cells"]:
+            #     cell__ = cell.info["cells"][cell_]["cell"]
+            #     settings__ = cell.info["cells"][cell_]["params"]
+            #     print(kf.get_cell(cell__, **settings__).name)
             if len(instances) == 2:
                 s.connect(
                     f"{instances[0].cell.name, instances[0].hash}",
@@ -387,17 +378,17 @@ def plot_sparameters_lumerical(
                     ports[1],
                 )
             else:
-                print(component.ports, value)
+                print(cell.ports, value)
                 input_port = (
                     ports[0]
-                    if input_port in component.ports.get_all_named().keys()
-                    and ports_[0].d.position == component.ports[input_port].d.position
+                    if input_port in cell.ports.get_all_named().keys()
+                    and ports_[0].d.position == cell.ports[input_port].d.position
                     else input
                 )
                 output_port = (
                     ports[0]
-                    if output_port in component.ports.get_all_named().keys()
-                    and ports_[0].d.position == component.ports[output_port].d.position
+                    if output_port in cell.ports.get_all_named().keys()
+                    and ports_[0].d.position == cell.ports[output_port].d.position
                     else output
                 )
                 inputs = [instances[0], input_port] if input != input_port else inputs
@@ -411,7 +402,7 @@ def plot_sparameters_lumerical(
             f"{inputs[1]}",
         )
         path3 = get_sparameters_path(
-            component, dirpath=dirpath, simulation_settings=simulation_settings
+            cell, dirpath=dirpath, simulation_settings=simulation_settings
         )
         s.save(path3.as_posix().replace(".npz", ".ice"))
         s.connect(
@@ -429,7 +420,7 @@ def plot_sparameters_lumerical(
 
 
 def write_sparameters_lumerical(
-    component: ComponentSpec,
+    cell: CellSpec,
     layer_stack: LayerStack = get_layer_stack(),
     session: Optional[object] = None,
     run: bool = True,
@@ -441,7 +432,7 @@ def write_sparameters_lumerical(
     solver: str = "FDTD",
     **settings: Any,
 ) -> np.ndarray[str, np.dtype[Any]] | Any:
-    r"""Returns and writes component Sparameters using Lumerical FDTD.
+    r"""Returns and writes cell Sparameters using Lumerical FDTD.
 
     If simulation exists it returns the Sparameters directly unless overwrite=True
     which forces a re-run of the simulation
@@ -452,7 +443,7 @@ def write_sparameters_lumerical(
     In the npz format you can see `S12m` where `m` stands for magnitude
     and `S12a` where `a` stands for angle in radians
 
-    Your components need to have ports, that will extend over the PML.
+    Your cells need to have ports, that will extend over the PML.
 
     .. image:: https://i.imgur.com/dHAzZRw.png
 
@@ -473,7 +464,7 @@ def write_sparameters_lumerical(
         mode_selection
 
     Args:
-        component: Component to simulate.
+        cell: cell to simulate.
         session: you can pass a session=lumapi.FDTD() or it will create one.
         run: True runs Lumerical, False only draws simulation.
         overwrite: run even if simulation results already exists.
@@ -550,7 +541,7 @@ def write_sparameters_lumerical(
     s_params = []
     insts = []
     trans = []
-    component = kf.get_component(component)
+    cell = kf.get_cell(cell)
 
     def recurse_insts(comp: Any, p=None):  # type: ignore
         if p:
@@ -558,7 +549,7 @@ def write_sparameters_lumerical(
         for inst in comp.insts:
             if inst.trans in trans:
                 continue
-            if inst.cell.name == component.name:  # type: ignore
+            if inst.cell.name == cell.name:  # type: ignore
                 continue
             if len(inst.cell.insts) > 0:
                 if "sim" in inst.cell.info:
@@ -570,36 +561,32 @@ def write_sparameters_lumerical(
                 insts.append(inst)
                 trans.append(inst.trans)
 
-    if "sim" not in component.info:
-        recurse_insts(component)
+    if "sim" not in cell.info:
+        recurse_insts(cell)
     paths: dict[str, Path] = {}
     for inst in insts:
-        component_ = inst.cell
+        cell_ = inst.cell
         # paths = {}
         if not overwrite:
-            if "components" in component_.info:
+            if "cells" in cell_.info:
                 paths = {}
-                for component2 in component_.info["components"]:
-                    settings_ = component_.info["components"][component2]
-                    component_2 = kf.get_component(
-                        settings_["component"], **settings_["params"]
-                    )
+                for cell2 in cell_.info["cells"]:
+                    settings_ = cell_.info["cells"][cell2]
+                    cell_2 = kf.get_cell(settings_["cell"], **settings_["params"])
                     path = get_sparameters_path(
-                        component_2,
+                        cell_2,
                         dirpath=dirpath,
                         layer_stack=layer_stack or get_layer_stack(),
                         **settings,
                     )
                     if overwrite or not path.exists():
                         try:
-                            component_solver = component_.info["components"][
-                                component2
-                            ]["sim"]
+                            cell_solver = cell_.info["cells"][cell2]["sim"]
                         except KeyError:
-                            component_solver = solver
+                            cell_solver = solver
                         s_params.append(
                             write_sparameters_lumerical(
-                                component=component_2,
+                                cell=cell_2,
                                 layer_stack=layer_stack,
                                 session=session,
                                 run=run,
@@ -608,26 +595,26 @@ def write_sparameters_lumerical(
                                 simulation_settings=simulation_settings,
                                 material_name_to_lumerical=material_name_to_lumerical,
                                 delete_fsp_files=delete_fsp_files,
-                                solver=component_solver,
+                                solver=cell_solver,
                                 **settings,
                             )
                         )
-                    paths[component_2.name] = path
+                    paths[cell_2.name] = path
 
             else:
                 path = get_sparameters_path(
-                    component_,
+                    cell_,
                     dirpath=dirpath,
                     layer_stack=layer_stack or get_layer_stack(),
                     **settings,
                 )
                 if path.exists():
                     # s_params.append(np.ndarray(np.load(path)))
-                    paths[component_.name] = path
+                    paths[cell_.name] = path
                 else:
                     s_params.append(
                         write_sparameters_lumerical(
-                            component=component_,
+                            cell=cell_,
                             layer_stack=layer_stack,
                             session=session,
                             run=run,
@@ -640,11 +627,11 @@ def write_sparameters_lumerical(
                             **settings,
                         )
                     )
-                paths[component_.name] = path
+                paths[cell_.name] = path
         else:
             s_params.append(
                 write_sparameters_lumerical(
-                    component=component_,
+                    cell=cell_,
                     layer_stack=layer_stack,
                     session=session,
                     run=run,
@@ -657,8 +644,8 @@ def write_sparameters_lumerical(
                     **settings,
                 )
             )
-            paths[component_.name] = get_sparameters_path(
-                component_,
+            paths[cell_.name] = get_sparameters_path(
+                cell_,
                 dirpath=dirpath,
                 layer_stack=layer_stack or get_layer_stack(),
                 **settings,
@@ -671,11 +658,9 @@ def write_sparameters_lumerical(
     layer_to_zmin = layer_stack.get_layer_to_zmin()
     layer_to_material = layer_stack.get_layer_to_material()
 
-    if hasattr(component.info, "simulation_settings"):
-        sim_settings.update(component.info.simulation_settings)
-        logger.info(
-            f"Updating {component.name!r} sim settings {component.simulation_settings}"
-        )
+    if hasattr(cell.info, "simulation_settings"):
+        sim_settings.update(cell.info.simulation_settings)
+        logger.info(f"Updating {cell.name!r} sim settings {cell.simulation_settings}")
     for setting in settings:
         if setting not in sim_settings:
             raise ValueError(
@@ -685,35 +670,35 @@ def write_sparameters_lumerical(
     sim_settings.update(**settings)
     ss = SimulationSettingsLumericalFdtd(**sim_settings)
 
-    component_extended = kf.KCell()
-    for port in component.ports:
-        component_ref = component_extended << component
-        width = port.width * component.klib.dbu if isinstance(port.width, int) else 1
-        extension = component_extended.create_inst(
-            KGeneric.pcells.waveguide(width, ss.port_extension, layer=port.layer)
+    cell_extended = kf.KCell()
+    for port in cell.ports:
+        cell_ref = cell_extended << cell
+        width = port.width * cell.klib.dbu if isinstance(port.width, int) else 1
+        extension = cell_extended.create_inst(
+            kf.cells.waveguide(width, ss.port_extension, layer=port.layer)
         )
-        extension.connect("o2", component_ref, port.name)
+        extension.connect("o2", cell_ref, port.name)
         output_port = extension.ports["o1"]
-        component_extended.add_port(extension.ports["o1"], name=port.name)
+        cell_extended.add_port(extension.ports["o1"], name=port.name)
 
-    # ports = component_extended.get_ports_list(port_type="optical")
+    # ports = cell_extended.get_ports_list(port_type="optical")
     # if not ports:
-    #     raise ValueError(f"{component.name!r} does not have any optical ports")
+    #     raise ValueError(f"{cell.name!r} does not have any optical ports")
 
-    # component.remove_layers(component.layers - set(layer_to_thickness.keys()))
-    # component._bb_valid = False
-    component_extended.flatten()
-    component_extended.name = "top"
-    # component.flatten()
-    component_extended.draw_ports()
-    solver = component.info["sim"] if "sim" in component.info else solver
+    # cell.remove_layers(cell.layers - set(layer_to_thickness.keys()))
+    # cell._bb_valid = False
+    cell_extended.flatten()
+    cell_extended.name = "top"
+    # cell.flatten()
+    cell_extended.draw_ports()
+    solver = cell.info["sim"] if "sim" in cell.info else solver
     filepath_npz = get_sparameters_path(
-        component=component,
+        cell=cell,
         dirpath=dirpath,
         layer_stack=layer_stack,
         **settings,
     )
-    component_extended.write(filepath_npz.with_suffix(".gds"))
+    cell_extended.write(filepath_npz.with_suffix(".gds"))
     gdspath = filepath_npz.with_suffix(".gds")
     filepath = filepath_npz.with_suffix(".dat")
     filepath_sim_settings = filepath.with_suffix(".yml")
@@ -728,10 +713,10 @@ def write_sparameters_lumerical(
         print(run_false_warning)
 
     logger.info(f"Writing Sparameters to {filepath_npz}")
-    xmin = component.dbbox().left
-    xmax = component.dbbox().right
-    ymin = component.dbbox().bottom
-    ymax = component.dbbox().top
+    xmin = cell.dbbox().left
+    xmax = cell.dbbox().right
+    ymin = cell.dbbox().bottom
+    ymax = cell.dbbox().top
     x_min = (xmin - ss.xmargin) * 1e-6
     x_max = (xmax + ss.xmargin) * 1e-6
     y_min = (ymin - ss.ymargin) * 1e-6
@@ -739,35 +724,35 @@ def write_sparameters_lumerical(
 
     # layers_thickness = [
     #     layer_to_thickness[layer]
-    #     for layer in component.get_layers()
+    #     for layer in cell.get_layers()
     #     if layer in layer_to_thickness
     # ]
     # if not layers_thickness:
     #     raise ValueError(
-    #         f"no layers for component {component.get_layers()}"
+    #         f"no layers for cell {cell.get_layers()}"
     #         f"in layer stack {layer_stack}"
     #     )
     # layers_zmin = [
     #     layer_to_zmin[layer]
-    #     for layer in component.get_layers()
+    #     for layer in cell.get_layers()
     #     if layer in layer_to_zmin
     # ]
-    # component_thickness = max(layers_thickness)
-    # component_zmin = min(layers_zmin)
+    # cell_thickness = max(layers_thickness)
+    # cell_zmin = min(layers_zmin)
 
-    # z = (component_zmin + component_thickness) / 2 * 1e-6
+    # z = (cell_zmin + cell_thickness) / 2 * 1e-6
     z = 0.0
     z_span = 1e-6
 
     x_span = x_max - x_min
     y_span = y_max - y_min
 
-    # layers = component.get_layers()
+    # layers = cell.get_layers()
     sim_settings.update(dict(layer_stack=layer_stack.to_dict()))
 
     # sim_settings = dict(
     #     simulation_settings=sim_settings,
-    #     component=component.to_dict(),
+    #     cell=cell.to_dict(),
     #     # version=__version__,
     # )
 
@@ -880,7 +865,7 @@ def write_sparameters_lumerical(
             s.select("EME::Ports::port_1")
             s.delete()
 
-    for i, port in enumerate(component.ports):
+    for i, port in enumerate(cell.ports):
         from kfactory.pdk import _ACTIVE_PDK
 
         zmin = layer_to_zmin[_ACTIVE_PDK.get_layer((1, 0))]  # type: ignore
@@ -983,7 +968,7 @@ def write_sparameters_lumerical(
         with open(filepath, "r+") as fd:
             data = fd.read()
             diction = {180: "LEFT", 0: "RIGHT", 90: "TOP", 270: "BOTTOM"}
-            for p_ in component.ports:
+            for p_ in cell.ports:
                 data = data.replace(
                     f"{p_.name}, LEFT", f"{p_.name}, {diction[int(p_.orientation)]}"
                 )
@@ -1029,7 +1014,7 @@ def write_sparameters_lumerical(
 
         with open(filepath, "r+") as f:
             text = f.read()
-            for i, val in enumerate(component.ports):
+            for i, val in enumerate(cell.ports):
                 text = text.replace(f"port {i+1}", val.name)
             f.write(text)
         f.close()
@@ -1056,22 +1041,18 @@ def write_sparameters_lumerical(
 
 
 if __name__ == "__main__":
+    import kgeneric
+    from kgeneric.pdk import LAYER
     import lumapi
 
     s = lumapi.FDTD()
 
-    # component = gf.components.straight(length=2.5)
-    component = KGeneric.pcells.mzi()
+    cell = kgeneric.cells.waveguide(width=0.5, length=2, layer=LAYER.WG)
 
     material_name_to_lumerical = dict(si=(3.45, 2))  # or dict(si=3.45+2j)
     r = write_sparameters_lumerical(
-        component=component,
+        cell=cell,
         material_name_to_lumerical=material_name_to_lumerical,  # type: ignore
         run=False,
         session=s,
     )
-    # c = gf.components.coupler_ring(length_x=3)
-    # c = gf.components.mmi1x2()
-    # print(r)
-    # print(r.keys())
-    # print(component.ports.keys())

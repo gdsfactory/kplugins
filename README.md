@@ -1,8 +1,6 @@
-# KFactory plugins 0.0.1
+# kplugins KFactory plugins 0.0.1
 
-KFactory extras such as PCells and plugins
-
-## Usage
+KFactory plugins
 
 ## Installation
 

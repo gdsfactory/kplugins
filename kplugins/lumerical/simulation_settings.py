@@ -2,8 +2,15 @@ from typing import Dict
 
 from pydantic import BaseModel
 
-from kfactory.materials import MaterialSpec
-from kfactory.materials import material_name_to_lumerical as material_name_to_lumerical_default
+import numpy as np
+from kplugins.typings import MaterialSpec
+
+
+material_name_to_lumerical_default: Dict[str, MaterialSpec] = {
+    "si": "Si (Silicon) - Palik",
+    "sio2": "SiO2 (Glass) - Palik",
+    "sin": "Si3N4 (Silicon Nitride) - Phillip",
+}
 
 
 class SimulationSettingsLumericalFdtd(BaseModel):
