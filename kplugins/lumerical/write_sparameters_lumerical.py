@@ -18,7 +18,7 @@ from kfactory.conf import logger
 from kfactory.pdk import LayerStack
 from kgeneric.pdk import LAYER_STACK
 
-from kplugins.lumerical.get_sparameters_path import (
+from kplugins.get_sparameters_path import (
     get_sparameters_path_lumerical as get_sparameters_path,
 )
 from kplugins.typings import PathType
@@ -110,7 +110,7 @@ def plot_sparameters_lumerical(
     - dirpath
     - layerStack
 
-    converts gdsfactory units (um) to Lumerical units (m)
+    converts kfactory units (um) to Lumerical units (m)
 
     Disclaimer: This function tries to extract Sparameters automatically
     is hard to make a function that will fit all your possible simulation settings.
@@ -453,7 +453,7 @@ def write_sparameters_lumerical(
     - dirpath
     - layerStack
 
-    converts gdsfactory units (um) to Lumerical units (m)
+    converts kfactory units (um) to Lumerical units (m)
 
     Disclaimer: This function tries to extract Sparameters automatically
     is hard to make a function that will fit all your possible simulation settings.
