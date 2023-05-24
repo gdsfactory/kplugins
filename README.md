@@ -1,4 +1,4 @@
-# kplugins KFactory plugins 0.0.1
+# kplugins KFactory plugins 0.0.2
 
 KFactory plugins
 
