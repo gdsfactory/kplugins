@@ -39,7 +39,7 @@ docs = [
     "autodoc_pydantic",
     "matplotlib",
     "jupytext",
-    "jupyter-book==2.1.6",
+    "jupyter-book==2.1.7",
     "sphinx-autodoc-typehints",
     "sphinx-click",
     ]
